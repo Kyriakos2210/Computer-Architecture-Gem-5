@@ -25,22 +25,11 @@ data = pd.read_excel(file_path, sheet_name=sheet_name)
 
 # Εξαγωγή τιμών από τη στήλη "Benchmarks" μέσω regex
 pattern = r"icache_(\d+)kB_(\d+)assoc_dcache_(\d+)kB_(\d+)assoc_l2_(\d+)MB_(\d+)assoc"
-data["L1I_size"] = data["Benchmarks"].str.extract(pattern).iloc[:, 0].astype(float)
-data["L1I_assoc"] = data["Benchmarks"].str.extract(pattern).iloc[:, 1].astype(float)
-data["L1D_size"] = data["Benchmarks"].str.extract(pattern).iloc[:, 2].astype(float)
-data["L1D_assoc"] = data["Benchmarks"].str.extract(pattern).iloc[:, 3].astype(float)
-data["L2_size"] = data["Benchmarks"].str.extract(pattern).iloc[:, 4].astype(float) * 1024  # Μετατροπή MB σε kB
-data["L2_assoc"] = data["Benchmarks"].str.extract(pattern).iloc[:, 5].astype(float)
+data[["L1I_size", "L1I_assoc", "L1D_size", "L1D_assoc", "L2_size", "L2_assoc"]] = data["Benchmarks"].str.extract(pattern).astype(float)
+data["L2_size"] *= 1024  # Μετατροπή MB σε kB
 
-# Διαχείριση NaN
-# print("Πριν τη διαχείριση NaN:")
-# print(data.isna().sum())
-
-# Αντικατάσταση των NaN με 0 ή αφαίρεση των γραμμών
-data = data.dropna()  # Εναλλακτικά, χρησιμοποιήστε data = data.fillna(0)
-
-# print("Μετά τη διαχείριση NaN:")
-# print(data.isna().sum())
+# Αφαίρεση των γραμμών με NaN
+data = data.dropna()
 
 # Μετατροπή στηλών σε float αν δεν είναι ήδη
 if data["system.cpu.cpi"].dtype != "float64":
@@ -56,30 +45,22 @@ data["Cost"] = data.apply(lambda row: calculate_cost(
     row["L2_assoc"]
 ), axis=1)
 
-# Προσθέτουμε στήλη με το CPI/Cost για κάθε run
-data["CPI/Cost"] = data["system.cpu.cpi"] / data["Cost"]
-
-# Εντοπισμός του run με το βέλτιστο CPI/Cost (χαμηλότερη τιμή)
-best_run = data.loc[data["CPI/Cost"].idxmin()]
-
-# Εκτύπωση πληροφοριών για την προσωμοίωση με το βέλτιστο CPI
-print("Run με βέλτιστο CPI/Cost:")
-print(f"Benchmark: {best_run['Benchmarks']}")
-print(f"CPI: {best_run['system.cpu.cpi']:.6f}")
-print(f"Cost: {best_run['Cost']:.6f}")
-print(f"CPI/Cost: {best_run['CPI/Cost']:.6f}")
+# Εύρεση του run με το μικρότερο CPI
+best_cpi_run = data.loc[data["system.cpu.cpi"].idxmin()]
+print("\nRun με το μικρότερο CPI:")
+print(f"Benchmark: {best_cpi_run['Benchmarks']}")
+print(f"CPI: {best_cpi_run['system.cpu.cpi']:.6f}")
+print(f"Cost: {best_cpi_run['Cost']:.6f}")
 
 # Δυνατότητα ορισμού ορίου κόστους
 cost_limit = 50  # Αλλάξτε το όριο αν χρειάζεται
 filtered_data = data[data["Cost"] <= cost_limit]
 
-#Εκτυπώνουμε τα αποτελέσματα
 if not filtered_data.empty:
-    best_run_within_limit = filtered_data.loc[filtered_data["CPI/Cost"].idxmin()]
-    print("\nRun με το βέλτιστο CPI/Cost εντός ορίου κόστους:")
+    best_run_within_limit = filtered_data.loc[filtered_data["system.cpu.cpi"].idxmin()]
+    print("\nRun με το μικρότερο CPI εντός ορίου κόστους:")
     print(f"Benchmark: {best_run_within_limit['Benchmarks']}")
     print(f"CPI: {best_run_within_limit['system.cpu.cpi']:.6f}")
     print(f"Cost: {best_run_within_limit['Cost']:.6f}")
-    print(f"CPI/Cost: {best_run_within_limit['CPI/Cost']:.6f}")
 else:
     print("\nΔεν βρέθηκαν runs εντός του ορίου κόστους.")
